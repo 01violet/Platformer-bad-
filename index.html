@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Platformer Game</title>
+  <style>
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #ccf;
+    }
+  </style>
+</head>
+<body>
+<canvas id="game" width="640" height="400"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const keys = { left: false, right: false };
+
+class Player {
+  constructor() {
+    this.x = 50;
+    this.y = 0;
+    this.vx = 0;
+    this.vy = 0;
+    this.width = 40;
+    this.height = 40;
+    this.speed = 3;
+    this.jumpStrength = 10;
+    this.gravity = 0.5;
+    this.onGround = false;
+    this.score = 0;
+  }
+
+  draw() {
+    ctx.fillStyle = 'green';
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+  }
+
+  jump() {
+    this.vy = -this.jumpStrength;
+    this.onGround = false;
+  }
+
+  update(platforms, collectibles, enemies) {
+    this.vx = 0;
+    if (keys.left) this.vx = -this.speed;
+    if (keys.right) this.vx = this.speed;
+
+    this.vy += this.gravity;
+    this.x += this.vx;
+    this.y += this.vy;
+
+    this.onGround = false;
+    for (let p of platforms) {
+      if (this.x < p.x + p.width && this.x + this.width > p.x && this.y + this.height <= p.y + this.vy && this.y + this.height + this.vy >= p.y) {
+        this.y = p.y - this.height;
+        this.vy = 0;
+        this.onGround = true;
+      }
+    }
+
+    for (let i = collectibles.length - 1; i >= 0; i--) {
+      let c = collectibles[i];
+      if (this.x < c.x + c.size && this.x + this.width > c.x && this.y < c.y + c.size && this.y + this.height > c.y) {
+        collectibles.splice(i, 1);
+        this.score++;
+      }
+    }
+
+    for (let e of enemies) {
+      if (this.x < e.x + e.width && this.x + this.width > e.x && this.y < e.y + e.height && this.y + this.height > e.y) {
+        this.x = 50;
+        this.y = 0;
+        this.vx = 0;
+        this.vy = 0;
+      }
+    }
+  }
+}
+
+class Platform {
+  constructor(x, y, width) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = 10;
+  }
+  draw() {
+    ctx.fillStyle = 'brown';
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+  }
+}
+
+class Collectible {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.size = 10;
+  }
+  draw() {
+    ctx.fillStyle = 'gold';
+    ctx.fillRect(this.x, this.y, this.size, this.size);
+  }
+}
+
+class Enemy {
+  constructor(x, y, width, height, range, speed) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.baseX = x;
+    this.range = range;
+    this.speed = speed;
+    this.direction = 1;
+  }
+
+  update() {
+    this.x += this.speed * this.direction;
+    if (this.x > this.baseX + this.range || this.x < this.baseX - this.range) {
+      this.direction *= -1;
+    }
+  }
+
+  draw() {
+    ctx.fillStyle = 'red';
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+  }
+}
+
+function createSafeLevel(offset) {
+  const platforms = [new Platform(0, 390, 640)];
+  let y = 320;
+  for (let i = 0; i < 4; i++) {
+    let x = 100 + (i * 120) + (offset % 2 === 0 ? 30 : -30);
+    platforms.push(new Platform(x, y, 100));
+    y -= 70;
+  }
+  const collectibles = [new Collectible(platforms[platforms.length - 1].x + 40, platforms[platforms.length - 1].y - 20)];
+  const enemies = [
+    new Enemy(platforms[1].x + 20, platforms[1].y - 10, 30, 10, 40, 1.5)
+  ];
+  return { platforms, collectibles, enemies };
+}
+
+const level1 = {
+  platforms: [
+    new Platform(0, 390, 640),
+    new Platform(100, 300, 100),
+    new Platform(250, 220, 100),
+    new Platform(400, 140, 100),
+  ],
+  collectibles: [
+    new Collectible(420, 120)
+  ],
+  enemies: []
+};
+
+const level2 = {
+  platforms: [
+    new Platform(0, 390, 640),
+    new Platform(150, 320, 120),
+    new Platform(310, 250, 100),
+    new Platform(470, 180, 80),
+  ],
+  collectibles: [
+    new Collectible(480, 160)
+  ],
+  enemies: [
+    new Enemy(160, 310, 30, 10, 40, 1.5)
+  ]
+};
+
+const levels = [level1, level2];
+for (let i = 0; i < 13; i++) {
+  levels.push(createSafeLevel(i));
+}
+
+let currentLevel = 0;
+const player = new Player();
+
+function nextLevel() {
+  currentLevel++;
+  if (currentLevel >= levels.length) {
+    currentLevel = 0;
+  }
+  player.x = 50;
+  player.y = 0;
+  player.vx = 0;
+  player.vy = 0;
+  player.onGround = false;
+}
+
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const level = levels[currentLevel];
+
+  for (let platform of level.platforms) platform.draw();
+  for (let c of level.collectibles) c.draw();
+  for (let enemy of level.enemies) {
+    enemy.update();
+    enemy.draw();
+  }
+
+  player.update(level.platforms, level.collectibles, level.enemies);
+  player.draw();
+
+  ctx.fillStyle = 'black';
+  ctx.font = '18px Arial';
+  ctx.fillText(`Level: ${currentLevel + 1} / ${levels.length}`, 10, 20);
+  ctx.fillText(`Score: ${player.score}`, 10, 40);
+
+  if (level.collectibles.length === 0) {
+    nextLevel();
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+  if ((e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') && player.onGround) {
+    player.jump();
+  }
+});
+
+window.addEventListener('keyup', e => {
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+});
+
+gameLoop();
+</script>
+</body>
+</html>
